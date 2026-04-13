@@ -81,8 +81,19 @@ async def fetch_futures_price(exchange_name: str, coin: str) -> float | None:
 
 
 async def fetch_all_futures_prices(coin: str) -> dict[str, float | None]:
-    """모든 해외 거래소의 선물 현재가를 한번에 조회."""
+    """모든 해외 거래소의 선물 현재가를 병렬 조회."""
+    import asyncio
+
+    names = list(EXCHANGE_CONFIGS.keys())
+    prices = await asyncio.gather(
+        *(fetch_futures_price(name, coin) for name in names),
+        return_exceptions=True,
+    )
     results = {}
-    for name in EXCHANGE_CONFIGS:
-        results[name] = await fetch_futures_price(name, coin)
+    for name, price in zip(names, prices):
+        if isinstance(price, Exception):
+            logger.error(f"{name} 선물 시세 병렬 조회 에러 ({coin}): {price}")
+            results[name] = None
+        else:
+            results[name] = price
     return results

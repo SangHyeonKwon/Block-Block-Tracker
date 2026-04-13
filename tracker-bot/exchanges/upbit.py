@@ -1,6 +1,5 @@
 """업비트 API — 시세 조회 (공개), 입출금 상태 조회 (인증 필요)."""
 
-import hashlib
 import uuid
 
 import aiohttp
@@ -10,6 +9,15 @@ from loguru import logger
 from config import UPBIT_ACCESS_KEY, UPBIT_SECRET_KEY
 
 BASE_URL = "https://api.upbit.com/v1"
+
+_session: aiohttp.ClientSession | None = None
+
+
+async def _get_session() -> aiohttp.ClientSession:
+    global _session
+    if _session is None or _session.closed:
+        _session = aiohttp.ClientSession()
+    return _session
 
 
 def _build_auth_header() -> dict[str, str]:
@@ -27,13 +35,13 @@ async def fetch_ticker(coin: str) -> dict | None:
     market = f"KRW-{coin.upper()}"
     url = f"{BASE_URL}/ticker"
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params={"markets": market}) as resp:
-                if resp.status != 200:
-                    logger.warning(f"업비트 시세 조회 실패: {resp.status}")
-                    return None
-                data = await resp.json()
-                return data[0] if data else None
+        session = await _get_session()
+        async with session.get(url, params={"markets": market}) as resp:
+            if resp.status != 200:
+                logger.warning(f"업비트 시세 조회 실패: {resp.status}")
+                return None
+            data = await resp.json()
+            return data[0] if data else None
     except Exception as e:
         logger.error(f"업비트 시세 조회 에러: {e}")
         return None
@@ -47,12 +55,12 @@ async def fetch_withdrawal_status() -> list[dict]:
     url = f"{BASE_URL}/status/wallet"
     headers = _build_auth_header()
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as resp:
-                if resp.status != 200:
-                    logger.warning(f"업비트 입출금 상태 조회 실패: {resp.status}")
-                    return []
-                return await resp.json()
+        session = await _get_session()
+        async with session.get(url, headers=headers) as resp:
+            if resp.status != 200:
+                logger.warning(f"업비트 입출금 상태 조회 실패: {resp.status}")
+                return []
+            return await resp.json()
     except Exception as e:
         logger.error(f"업비트 입출금 상태 에러: {e}")
         return []

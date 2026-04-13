@@ -5,21 +5,30 @@ from loguru import logger
 
 BASE_URL = "https://api.bithumb.com/public"
 
+_session: aiohttp.ClientSession | None = None
+
+
+async def _get_session() -> aiohttp.ClientSession:
+    global _session
+    if _session is None or _session.closed:
+        _session = aiohttp.ClientSession()
+    return _session
+
 
 async def fetch_ticker(coin: str) -> dict | None:
     """현재가 조회."""
     url = f"{BASE_URL}/ticker/{coin.upper()}_KRW"
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    logger.warning(f"빗썸 시세 조회 실패: {resp.status}")
-                    return None
-                data = await resp.json()
-                if data.get("status") != "0000":
-                    logger.warning(f"빗썸 시세 에러: {data.get('message')}")
-                    return None
-                return data.get("data")
+        session = await _get_session()
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                logger.warning(f"빗썸 시세 조회 실패: {resp.status}")
+                return None
+            data = await resp.json()
+            if data.get("status") != "0000":
+                logger.warning(f"빗썸 시세 에러: {data.get('message')}")
+                return None
+            return data.get("data")
     except Exception as e:
         logger.error(f"빗썸 시세 조회 에러: {e}")
         return None
@@ -29,15 +38,15 @@ async def fetch_asset_status() -> dict:
     """전체 코인 입출금 상태 조회."""
     url = f"{BASE_URL}/assetsstatus/ALL"
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    logger.warning(f"빗썸 입출금 상태 조회 실패: {resp.status}")
-                    return {}
-                data = await resp.json()
-                if data.get("status") != "0000":
-                    return {}
-                return data.get("data", {})
+        session = await _get_session()
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                logger.warning(f"빗썸 입출금 상태 조회 실패: {resp.status}")
+                return {}
+            data = await resp.json()
+            if data.get("status") != "0000":
+                return {}
+            return data.get("data", {})
     except Exception as e:
         logger.error(f"빗썸 입출금 상태 에러: {e}")
         return {}
